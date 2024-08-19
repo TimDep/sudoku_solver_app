@@ -1,11 +1,13 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:image/image.dart' as img;
+import 'package:opencv_dart/opencv_dart.dart' as cv;
+
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/painting.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -17,6 +19,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   XFile? _pickedFile;
   CroppedFile? _croppedFile;
+  File? _processedFile;
 
   @override
   void initState() {
@@ -97,6 +100,8 @@ class _HomeState extends State<Home> {
     if (_pickedFile != null) {
       if (_croppedFile != null) {
         return _buildCroppedImage();
+      } else if (_processedFile != null) {
+        return _buildProcessedImage();
       } else {
         return _buildOriginalImage();
       }
@@ -107,9 +112,11 @@ class _HomeState extends State<Home> {
 
   Widget _startScreen() {
     return Scaffold(
-      body: Center( // Center the Column widget horizontally and vertically
+      body: Center(
+        // Center the Column widget horizontally and vertically
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center, // Center the content vertically
+          mainAxisAlignment: MainAxisAlignment.center,
+          // Center the content vertically
           children: <Widget>[
             ElevatedButton(
               onPressed: _getImage,
@@ -120,7 +127,8 @@ class _HomeState extends State<Home> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: const Text('Choose from gallery', style: TextStyle(fontSize: 18)),
+              child: const Text('Choose from gallery',
+                  style: TextStyle(fontSize: 18)),
             ),
             const SizedBox(height: 60), // Spacing between buttons
             ElevatedButton(
@@ -132,14 +140,14 @@ class _HomeState extends State<Home> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: const Text('Take a picture', style: TextStyle(fontSize: 18)),
+              child:
+                  const Text('Take a picture', style: TextStyle(fontSize: 18)),
             ),
           ],
         ),
       ),
     );
   }
-
 
   Widget _buildCroppedImage() {
     return Padding(
@@ -289,17 +297,51 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _submit() async {
-    final image = img.Image(width: 512, height: 512);
-    for (var i = 0, len = 512; i < len; i++) {
-      for (var j = 0, len = 512; j < len; j++) {
-        final color = result_list_Uint8[i * 512 + j] == 0 ? 0 : 0xffffff;
-        img.setPixelSafe(i, j, 0xff000000 | color);
-      }
+    final inputImage = cv.imread(_croppedFile?.path ?? _pickedFile!.path);
+    final gray = cv.cvtColor(inputImage, cv.COLOR_BGR2GRAY);
+    final threshold = cv.adaptiveThreshold(
+        gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 57, 5);
+
+    final directory = await getTemporaryDirectory();
+    final path = '${directory.path}/processed_image.png';
+    cv.imwrite(path, gray);
+    setState(() {
+      _processedFile = File(path);
+    });
+
+    // var cntrs = cv.findContours(threshold, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
+    // if(cntrs.length() == 2){
+    //   cntrs = cntrs[0];
+    // }
+    // else{
+    //   cntrs = cntrs[1];
+    // }
+  }
+
+  Widget _buildProcessedImage() {
+    if (_processedFile != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 2,
+              child: Card(
+                elevation: 4.0,
+                child: Image.file(
+                  _processedFile!,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            // You can include additional UI controls here as needed
+          ],
+        ),
+      );
+    } else {
+      return const Text('No processed image available.');
     }
-
-    final pngBytes = Uint8List.fromList(img.encodePng(image));
-    photoImage = Image.memory(pngBytes);
-
   }
 
   void _clear() {
