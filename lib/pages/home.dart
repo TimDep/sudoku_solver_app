@@ -1,13 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:opencv_dart/opencv_dart.dart' as cv;
-
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter/painting.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:path/path.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -297,25 +298,40 @@ class _HomeState extends State<Home> {
   }
 
   Future<void> _submit() async {
-    final inputImage = cv.imread(_croppedFile?.path ?? _pickedFile!.path);
-    final gray = cv.cvtColor(inputImage, cv.COLOR_BGR2GRAY);
-    final threshold = cv.adaptiveThreshold(
-        gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 57, 5);
+    //TODO Python API call
+    final uri = Uri.parse('http://10.0.2.2:5000/upload-image');
 
-    final directory = await getTemporaryDirectory();
-    final path = '${directory.path}/processed_image.png';
-    cv.imwrite(path, gray);
-    setState(() {
-      _processedFile = File(path);
-    });
+    // Create a multipart request
+    var request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath(
+        'image',
+        _croppedFile?.path ?? _pickedFile!.path,
+        filename: basename(_croppedFile?.path ?? _pickedFile!.path),
+        contentType: MediaType('image', 'png'),
+      ));
 
-    // var cntrs = cv.findContours(threshold, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE);
-    // if(cntrs.length() == 2){
-    //   cntrs = cntrs[0];
-    // }
-    // else{
-    //   cntrs = cntrs[1];
-    // }
+    try {
+      // Send the request
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        // Process the response
+        var responseData = await http.Response.fromStream(response);
+
+        // Save the received image to a file
+        final processedImageBytes = responseData.bodyBytes;
+        final processedImageFile = File('${_croppedFile?.path ?? _pickedFile!.path}_processed.png');
+        await processedImageFile.writeAsBytes(processedImageBytes);
+
+        setState(() {
+          _processedFile = processedImageFile;
+        });
+      } else {
+        print('Failed to upload image: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error occurred: $e');
+    }
   }
 
   Widget _buildProcessedImage() {

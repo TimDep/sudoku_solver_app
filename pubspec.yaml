@@ -40,8 +40,8 @@ dependencies:
   camera: ^0.10.5+9
   gestures: ^1.0.0
   image: ^4.2.0
-  opencv_dart: ^1.2.1
-  path_provider: ^2.1.4
+  http: ^1.2.2
+
 
 
 dev_dependencies:
