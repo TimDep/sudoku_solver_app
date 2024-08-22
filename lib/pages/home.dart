@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path/path.dart';
 
+import '../widgets/grid_tile.dart';
+
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -23,6 +25,8 @@ class _HomeState extends State<Home> {
 
   List<List<String>>? sudokuGrid;
   late List<List<TextEditingController>> controllers;
+  int selectedX = 0;
+  int selectedY = 0;
 
   @override
   void initState() {
@@ -34,18 +38,6 @@ class _HomeState extends State<Home> {
     WidgetsFlutterBinding.ensureInitialized();
   }
 
-  void initializeControllers() {
-    if (sudokuGrid != null) {
-      controllers = List.generate(9, (i) =>
-          List.generate(9, (j) =>
-              TextEditingController(text: sudokuGrid![i][j])));
-    } else {
-      controllers = List.generate(9, (i) =>
-          List.generate(9, (j) =>
-              TextEditingController(text: "")));
-    }
-  }
-
   Future<void> _getImage() async {
     final pickedFile =
     await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -53,7 +45,7 @@ class _HomeState extends State<Home> {
       setState(() {
         _pickedFile = pickedFile;
         _croppedFile = null;
-        sudokuGrid = null;  // Clear the Sudoku grid when a new image is picked
+        sudokuGrid = null; // Clear the Sudoku grid when a new image is picked
       });
     }
   }
@@ -65,7 +57,7 @@ class _HomeState extends State<Home> {
       setState(() {
         _pickedFile = pickedFile;
         _croppedFile = null;
-        sudokuGrid = null;  // Clear the Sudoku grid when a new image is picked
+        sudokuGrid = null; // Clear the Sudoku grid when a new image is picked
       });
     }
   }
@@ -125,7 +117,6 @@ class _HomeState extends State<Home> {
 
         setState(() {
           sudokuGrid = grid;
-          initializeControllers();  // Initialize controllers after receiving the grid
         });
       } else {
         print('Failed to upload image: ${response.statusCode}');
@@ -230,8 +221,7 @@ class _HomeState extends State<Home> {
                 child: RichText(
                   text: TextSpan(
                     text: 'Snij Foto bij',
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    recognizer: TapGestureRecognizer(),
+                    style: TextStyle(color: Colors.white, fontSize: 15),
                   ),
                 ),
               ),
@@ -248,8 +238,7 @@ class _HomeState extends State<Home> {
                 child: RichText(
                   text: TextSpan(
                     text: 'Submit',
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    recognizer: TapGestureRecognizer(),
+                    style: TextStyle(color: Colors.white, fontSize: 15),
                   ),
                 ),
               ),
@@ -265,8 +254,7 @@ class _HomeState extends State<Home> {
                 child: RichText(
                   text: TextSpan(
                       text: 'Cancel',
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
-                      recognizer: TapGestureRecognizer()),
+                      style: TextStyle(color: Colors.white, fontSize: 15)),
                 ),
               ),
             ],
@@ -297,11 +285,10 @@ class _HomeState extends State<Home> {
                         borderRadius: BorderRadius.circular(15)),
                   ),
                   child: RichText(
-                    text: TextSpan(
+                    text: const TextSpan(
                         text: 'Snij Foto bij',
                         style:
-                        const TextStyle(color: Colors.white, fontSize: 15),
-                        recognizer: TapGestureRecognizer()),
+                        TextStyle(color: Colors.white, fontSize: 15)),
                   ),
                 ),
                 const SizedBox(width: 16.0),
@@ -317,8 +304,7 @@ class _HomeState extends State<Home> {
                     text: TextSpan(
                         text: 'Submit',
                         style:
-                        const TextStyle(color: Colors.white, fontSize: 15),
-                        recognizer: TapGestureRecognizer()),
+                        TextStyle(color: Colors.white, fontSize: 15)),
                   ),
                 ),
               ],
@@ -333,10 +319,9 @@ class _HomeState extends State<Home> {
                     borderRadius: BorderRadius.circular(15)),
               ),
               child: RichText(
-                text: TextSpan(
+                text: const TextSpan(
                     text: 'Cancel',
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    recognizer: TapGestureRecognizer()),
+                    style: TextStyle(color: Colors.white, fontSize: 15)),
               ),
             ),
           ],
@@ -349,31 +334,40 @@ class _HomeState extends State<Home> {
     if (sudokuGrid != null) {
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: GridView.builder(
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 9,
-            childAspectRatio: 1.0,
-          ),
-          itemCount: 81,
-          itemBuilder: (context, index) {
-            int row = index ~/ 9;
-            int col = index % 9;
-            return Padding(
-              padding: const EdgeInsets.all(2.0),
-              child: TextField(
-                controller: controllers[row][col],
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (value) {
-                  // Update the grid when a user inputs a number
-                  sudokuGrid![row][col] = value;
+        child: Container(
+          padding: const EdgeInsets.all(3.5),
+          height: 296,
+          width: 296,
+          color: const Color(0xff575D62),
+          child: GridView.builder(
+            itemCount: 81,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 9,
+            ),
+            itemBuilder: (BuildContext context, int index) {
+              int i = (index % 9);
+              int j = (index ~/ 9);
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    selectedX = i;
+                    selectedY = j;
+                  });
                 },
-              ),
-            );
-          },
+                child: SudokuTile(
+                  c: (i == selectedX && j == selectedY)
+                      ? Colors.grey
+                      : (((i + 1 <= 6 && i + 1 >= 4) &&
+                      (j + 1 <= 3 || j + 1 >= 7)) ||
+                      ((i + 1 <= 3 || i + 1 >= 7) &&
+                          (j + 1 >= 4 && j + 1 <= 6))
+                      ? const Color(0xff1B2023)
+                      : const Color(0xff23292C)),
+                  value: int.tryParse(sudokuGrid![j][i]) ?? 0,
+                ),
+              );
+            },
+          ),
         ),
       );
     } else {
@@ -389,3 +383,4 @@ class _HomeState extends State<Home> {
     });
   }
 }
+
