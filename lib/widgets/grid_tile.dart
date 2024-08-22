@@ -15,7 +15,7 @@ class SudokuTile extends StatelessWidget {
         color: c,
         child: Text(
           value == 0 ? " " : value.toString(),
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: Colors.black),
         ),
       ),
     );

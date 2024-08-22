@@ -24,19 +24,37 @@ class _HomeState extends State<Home> {
   CroppedFile? _croppedFile;
 
   List<List<String>>? sudokuGrid;
-  late List<List<TextEditingController>> controllers;
+  List<List<TextEditingController>>? controllers;
+
   int selectedX = 0;
   int selectedY = 0;
 
   @override
   void initState() {
+    _initializeControllers();
     super.initState();
     initCamera();
+  }
+
+  @override
+  void dispose() {
+    for (var row in controllers!) {
+      for (var controller in row) {
+        controller.dispose();
+      }
+    }
+    super.dispose();
   }
 
   void initCamera() async {
     WidgetsFlutterBinding.ensureInitialized();
   }
+
+  void _initializeControllers() {
+    controllers = List.generate(9, (i) =>
+        List.generate(9, (j) => TextEditingController()));
+  }
+
 
   Future<void> _getImage() async {
     final pickedFile =
@@ -117,6 +135,7 @@ class _HomeState extends State<Home> {
 
         setState(() {
           sudokuGrid = grid;
+          _updateSudokuGrid();
         });
       } else {
         print('Failed to upload image: ${response.statusCode}');
@@ -301,7 +320,7 @@ class _HomeState extends State<Home> {
                         borderRadius: BorderRadius.circular(15)),
                   ),
                   child: RichText(
-                    text: TextSpan(
+                    text: const TextSpan(
                         text: 'Submit',
                         style:
                         TextStyle(color: Colors.white, fontSize: 15)),
@@ -332,48 +351,116 @@ class _HomeState extends State<Home> {
 
   Widget _buildSudokuGrid() {
     if (sudokuGrid != null) {
+      _updateSudokuGrid(); // Update controllers with the current grid values
+
       return Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Container(
-          padding: const EdgeInsets.all(3.5),
-          height: 296,
-          width: 296,
-          color: const Color(0xff575D62),
-          child: GridView.builder(
-            itemCount: 81,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 9,
-            ),
-            itemBuilder: (BuildContext context, int index) {
-              int i = (index % 9);
-              int j = (index ~/ 9);
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    selectedX = i;
-                    selectedY = j;
-                  });
-                },
-                child: SudokuTile(
-                  c: (i == selectedX && j == selectedY)
-                      ? Colors.grey
-                      : (((i + 1 <= 6 && i + 1 >= 4) &&
-                      (j + 1 <= 3 || j + 1 >= 7)) ||
-                      ((i + 1 <= 3 || i + 1 >= 7) &&
-                          (j + 1 >= 4 && j + 1 <= 6))
-                      ? const Color(0xff1B2023)
-                      : const Color(0xff23292C)),
-                  value: int.tryParse(sudokuGrid![j][i]) ?? 0,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(3.5),
+              height: 296,
+              width: 296,
+              color: Colors.black,
+              child: GridView.builder(
+                itemCount: 81,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 9,
                 ),
-              );
-            },
-          ),
+                itemBuilder: (BuildContext context, int index) {
+                  int i = (index % 9);
+                  int j = (index ~/ 9);
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        selectedX = i;
+                        selectedY = j;
+                      });
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: (i == selectedX && j == selectedY)
+                            ? const Color(0xffD3D3D3)
+                            : Colors.white,
+                        border: Border.all(color: Colors.black),
+                      ),
+                      child: TextField(
+                        controller: controllers?[j][i],
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        maxLength: 1,
+                        decoration: const InputDecoration(
+                          counterText: '', // Removes character counter
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (value) {
+                          sudokuGrid![j][i] = value;
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _solveSudoku,
+              style: ElevatedButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: Colors.blue,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              child: const Text('Solve', style: TextStyle(fontSize: 18)),
+            ),
+          ],
         ),
       );
     } else {
       return const Text('No processed image available.');
     }
   }
+
+  void _updateSudokuGrid() {
+    if (sudokuGrid != null) {
+      for (int i = 0; i < 9; i++) {
+        for (int j = 0; j < 9; j++) {
+          controllers![i][j].text = sudokuGrid![i][j];
+        }
+      }
+    }
+  }
+
+  void _solveSudoku() async {
+    print(sudokuGrid);
+    // final uri = Uri.parse('http://10.0.2.2:5000/solve-sudoku');
+    // try {
+    //   var response = await http.post(
+    //     uri,
+    //     headers: {'Content-Type': 'application/json'},
+    //     body: jsonEncode({'grid': sudokuGrid}),
+    //   );
+    //
+    //   if (response.statusCode == 200) {
+    //     //TODO OOK GET THE STEPS ON HOW TO SOLVE IT
+    //     Map<String, dynamic> parsedJson = json.decode(response.body);
+    //     List<List<String>> solvedGrid = (parsedJson['grid'] as List)
+    //         .map((row) => (row as List).map((cell) => cell.toString()).toList())
+    //         .toList();
+    //
+    //     setState(() {
+    //       sudokuGrid = solvedGrid;
+    //       _updateSudokuGrid(); // Update controllers with the solved grid
+    //     });
+    //   } else {
+    //     print('Failed to solve Sudoku: ${response.statusCode}');
+    //   }
+    // } catch (e) {
+    //   print('Error occurred: $e');
+    // }
+  }
+
 
   void _clear() {
     setState(() {
